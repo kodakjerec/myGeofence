@@ -23,10 +23,10 @@
         </config-file>
         <header-file src="src/ios/geofence.h" />
         <source-file src="src/ios/geofence.m" />
-        <header-file src="src/ios/AppDelegate+Grofence.h" />
+        <header-file src="src/ios/AppDelegate+Grofence.h" /> 
         <source-file src="src/ios/AppDelegate+Grofence.m" />
-        <header-file src="src/ios/Global.h" />
-        <source-file src="src/ios/Global.m" />
+        <!-- <header-file src="src/ios/Global.h" /> -->
+        <!-- <source-file src="src/ios/Global.m" /> -->
     </platform>
     <platform name="android">
         <config-file parent="/*" target="res/xml/config.xml">
@@ -35,10 +35,12 @@
             </feature>
         </config-file>
         <config-file target="AndroidManifest.xml" parent="/manifest/application">
-            <service android:enabled="true" android:name="geofence.EveryTenMinuteCallThisService" />
+            <service android:enabled="true" android:name="geofence.EveryTenMinuteCallThisService" android:permission="android.permission.BIND_JOB_SERVICE" />
+            <receiver android:name="geofence.NotificationBroadcastReceiver"></receiver>
         </config-file>
         <source-file src="src/android/geofence.java" target-dir="src/geofence" />
         <source-file src="src/android/EveryTenMinuteCallThisService.java" target-dir="src/geofence" />
         <source-file src="src/android/NotificationBroadcastReceiver.java" target-dir="src/geofence" />
+        <framework src="com.google.android.gms:play-services-location:15.0.1" />
     </platform>
 </plugin>

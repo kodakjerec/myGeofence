@@ -3,49 +3,74 @@
 
 @implementation geofence {
     // Member variables go here.
-    CLLocation *lastLocation;
     CLLocationManager *locationManager;
     NSString *locationUpdateCallbackID;
-    NSString *localNotificationCallbackID;
+    NSMutableArray* languageJson;  // 系統預設中英字串
 }
 
 - (void)initGeofence:(CDVInvokedUrlCommand *)command{
     
     if (locationManager == nil) {
-        locationManager = [Global sharedInstance].locationManager;
+        locationManager = [[CLLocationManager alloc] init];
         locationManager.distanceFilter = 1000;
         locationManager.allowsBackgroundLocationUpdates = YES;
     }
+    locationUpdateCallbackID = command.callbackId;
     locationManager.delegate = self;
     
-    Global *global = [Global sharedInstance];
-    BOOL isGenfenceEnable = [[NSUserDefaults standardUserDefaults] boolForKey:@"GeofenceStatus"];
-    global.isGenfenceEnable = isGenfenceEnable;
-    
-    [self checkReceiveStatus];
+    // 啟用地理柵欄
+    BOOL isGenfenceEnable = [[NSUserDefaults standardUserDefaults] boolForKey:@"geoFence_GeofenceStatus"];
+    if(isGenfenceEnable){
+        if ([CLLocationManager authorizationStatus] == kCLAuthorizationStatusAuthorizedAlways) {
+            [locationManager startMonitoringSignificantLocationChanges];
+        } else {
+            [locationManager requestAlwaysAuthorization];
+        }
+    }
 }
 
 - (void)setLocationUpdateEventListener:(CDVInvokedUrlCommand *)command{
-    locationUpdateCallbackID = command.callbackId;
 }
 
 - (void)setLocalNotificationEventListener:(CDVInvokedUrlCommand *)command{
-    localNotificationCallbackID = command.callbackId;
+    // 按下通知的時候, app is killed
+    NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
+    BOOL isAppKilledPreviousRound = [defaults boolForKey:@"geoFence_ReceiveNotification"];
+    NSLog(@"檢查上一輪的通知, checkNotification %d",isAppKilledPreviousRound);
+    if(isAppKilledPreviousRound==YES){
+        NSLog(@"按下通知的時候, app is killed");
+        [defaults removeObjectForKey:@"geoFence_ReceiveNotification"];
+        NSString* merchantID = [defaults valueForKey:@"geoFence_ReceiveNotification_merchantID"];
+        [self sendUpdate_changePage:merchantID];
+    }
 }
 
+// 設定語言
+- (void)language:(CDVInvokedUrlCommand *)command{
+    NSLog(@"geoFence language");
+    languageJson = [command.arguments objectAtIndex:0];
+}
+// 取得對應的文字
+- (NSString*)getLanguageText:(NSString*)key {
+    if([languageJson valueForKey:key]){
+        return [languageJson valueForKey:key];
+    } else {
+        return key;
+    }
+}
+
+// 取得地理柵欄目前開啟狀態
 - (void)getGeofenceStatus:(CDVInvokedUrlCommand *)command {
-    BOOL status = [Global sharedInstance].isGenfenceEnable;
-    
-    CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsBool:status];
+    BOOL isGenfenceEnable = [[NSUserDefaults standardUserDefaults] boolForKey:@"geoFence_GeofenceStatus"];
+    CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsBool:isGenfenceEnable];
     [result setKeepCallbackAsBool:NO];
     [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
 }
 
+// 啟用 地理柵欄
 - (void)enableGeofence:(CDVInvokedUrlCommand *)command {
-    
-    NSLog(@"startSLCService");
-    [Global sharedInstance].isGenfenceEnable = YES;
-    [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"GeofenceStatus"];
+    NSLog(@"geoFence enableGeofence");
+    [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"geoFence_GeofenceStatus"];
     
     if ([CLLocationManager authorizationStatus] == kCLAuthorizationStatusAuthorizedAlways) {
         [locationManager startMonitoringSignificantLocationChanges];
@@ -54,67 +79,53 @@
     }
 }
 
+//停用 地理柵欄
 - (void)disableGeofence:(CDVInvokedUrlCommand *)command {
     
-    NSLog(@"stopSLCService");
-    [Global sharedInstance].isGenfenceEnable = NO;
-    [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"GeofenceStatus"];
+    NSLog(@"geoFence disableGeofence");
+    [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"geoFence_GeofenceStatus"];
     [locationManager stopMonitoringSignificantLocationChanges];
-    
 }
 
 - (void)locationManager:(CLLocationManager *)manager didChangeAuthorizationStatus:(CLAuthorizationStatus)status{
-    
     if ([CLLocationManager authorizationStatus] == kCLAuthorizationStatusAuthorizedAlways) {
-        lastLocation = [locationManager location];
         [locationManager startMonitoringSignificantLocationChanges];
     }
 }
 
+// 發送通知
 - (void)sentLocalNotification:(CDVInvokedUrlCommand *)command {
+    NSLog(@"geoFence sentLocalNotification");
     
     [self checkReceiveStatus];
-    if ([Global sharedInstance].isReceiveStoreInfo) {
+    if([[NSUserDefaults standardUserDefaults] boolForKey:@"geoFence_isReceiveStoreInfo"]==YES) {
         return;
     }
-    
+
+    NSString *merchantID = [command argumentAtIndex:0];
     UILocalNotification *localNotification = [[UILocalNotification alloc] init];
-    localNotification.userInfo = [[NSDictionary alloc] initWithObjectsAndKeys:@"GeofenceNotification",@"name", nil];
-    localNotification.alertTitle = @"SC Mobile";
-    localNotification.alertBody = @"您有1則來自渣打銀行活動訊息通知";
+    localNotification.userInfo = [[NSDictionary alloc] initWithObjectsAndKeys:@"GeofenceNotification",@"name",merchantID,@"merchantID", nil];
+    localNotification.alertTitle =[self getLanguageText:@"confirmTitle"];
+    localNotification.alertBody = [self getLanguageText:@"confirmContent"];
     [[UIApplication sharedApplication] scheduleLocalNotification:localNotification];
-}
-
-- (void)userDidReceiveNotification:(UILocalNotification *)notification{
-    
-    if (localNotificationCallbackID == nil) {
-        return;
-    }
-    
     [self setReceiveStatus];
-    
-    CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
-    [result setKeepCallbackAsBool:NO];
-    [self.commandDelegate sendPluginResult:result callbackId:localNotificationCallbackID];
 }
 
+// 發送確認視窗
 - (void)sentConfirmDialog:(CDVInvokedUrlCommand *)command {
+    NSLog(@"geoFence sentConfirmDialog");
     
     [self checkReceiveStatus];
-    if ([Global sharedInstance].isReceiveStoreInfo) {
+    if([[NSUserDefaults standardUserDefaults] boolForKey:@"geoFence_isReceiveStoreInfo"]==YES) {
         return;
     }
     
-    UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"SC Mobile" message:@"您有1則來自渣打銀行活動訊息通知" preferredStyle:UIAlertControllerStyleAlert];
-    [alertController addAction:[UIAlertAction actionWithTitle:@"檢視" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        
-        CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
-        [result setKeepCallbackAsBool:NO];
-        [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
-        
+    UIAlertController *alertController = [UIAlertController alertControllerWithTitle:[self getLanguageText:@"confirmTitle"] message:[self getLanguageText:@"confirmContent"] preferredStyle:UIAlertControllerStyleAlert];
+    [alertController addAction:[UIAlertAction actionWithTitle:[self getLanguageText:@"confirmOK"] style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        [self sendUpdate_changePage:@""];
     }]];
     
-    [alertController addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+    [alertController addAction:[UIAlertAction actionWithTitle:[self getLanguageText:@"confirmCancel"] style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
         [self.viewController dismissViewControllerAnimated:YES completion:nil];
     }]];
     
@@ -123,55 +134,52 @@
     }];
 }
 
-- (void)locationUpdate:(CLLocation*) location{
-    //檢查是否有callback method
-    if (locationUpdateCallbackID == nil) {
-        return;
-    }
-    //檢查今日是否有顯示popup
-    [self checkReceiveStatus];
-    if ([Global sharedInstance].isReceiveStoreInfo) {
-        return;
-    }
-    
+- (void)sendUpdate:(NSMutableDictionary*) locationInfo{
+    CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:locationInfo];
+    [result setKeepCallbackAsBool:YES];
+    [self.commandDelegate sendPluginResult:result callbackId:locationUpdateCallbackID];
+}
+- (void)sendUpdate_changePage:(NSString*)Id{
     NSMutableDictionary *locationInfo = [[NSMutableDictionary alloc] init];
-    [locationInfo setObject: [NSNumber numberWithDouble: location.coordinate.latitude] forKey:@"latitude"];
-    [locationInfo setObject: [NSNumber numberWithDouble: location.coordinate.longitude] forKey:@"longitude"];
+    [locationInfo setValue:@"changePage" forKey:@"type"];
+    [locationInfo setValue:Id forKey:@"merchantID"];
     
     CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:locationInfo];
     [result setKeepCallbackAsBool:YES];
     [self.commandDelegate sendPluginResult:result callbackId:locationUpdateCallbackID];
-    
 }
 
 - (void)locationManager:(CLLocationManager *)manager didUpdateLocations:(NSArray<CLLocation *> *)locations{
-    
     CLLocation *newLocation = locations.lastObject;
-    CLLocationDistance distance = [lastLocation distanceFromLocation:newLocation];
     
-    //  避免啟用位置偵測時馬上抓店家
-    if (distance > 2000) {
-        [self locationUpdate:newLocation];
-    }
+    NSMutableDictionary *locationInfo = [[NSMutableDictionary alloc] init];
+    [locationInfo setValue:@"locationUpdate" forKey:@"type"];
+    [locationInfo setObject: [NSString stringWithFormat:@"%f", newLocation.coordinate.latitude] forKey:@"latitude"];
+    [locationInfo setObject: [NSString stringWithFormat:@"%f", newLocation.coordinate.longitude] forKey:@"longitude"];
     
+    [self sendUpdate:locationInfo];
 }
 
+// 設定 地理柵欄通知
 - (void)setReceiveStatus{
-    [Global sharedInstance].isReceiveStoreInfo = YES;
     NSDateComponents *components = [[NSCalendar currentCalendar] components:NSCalendarUnitDay | NSCalendarUnitMonth | NSCalendarUnitYear fromDate:[NSDate date]];
     NSDate *receiveDate = [[NSCalendar currentCalendar] dateFromComponents:components];
-    [[NSUserDefaults standardUserDefaults] setObject:receiveDate forKey:@"ReceiveDate"];
+    [[NSUserDefaults standardUserDefaults] setObject:receiveDate forKey:@"geoFence_ReceiveDate"];
+    
+    [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"geoFence_isReceiveStoreInfo"];
 }
 
+// 檢查 是否已經接受過地理柵欄通知
 - (void)checkReceiveStatus{
     
     // 用日期判斷今天是否已經顯示過
     NSDateComponents *components = [[NSCalendar currentCalendar] components:NSCalendarUnitDay | NSCalendarUnitMonth | NSCalendarUnitYear fromDate:[NSDate date]];
     NSDate *currentDate = [[NSCalendar currentCalendar] dateFromComponents:components];
-    NSDate *receiveDate = [[NSUserDefaults standardUserDefaults] objectForKey:@"ReceiveDate"];
+    NSDate *receiveDate = [[NSUserDefaults standardUserDefaults] objectForKey:@"geoFence_ReceiveDate"];
     BOOL isReceive = [receiveDate isEqualToDate:currentDate];
     
-    [Global sharedInstance].isReceiveStoreInfo = isReceive;
+    // 測試用指定為NO, 正式要指定 isReceive
+    [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"geoFence_isReceiveStoreInfo"];
 }
 
 @end

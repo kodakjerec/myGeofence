@@ -1,15 +1,14 @@
 //
-//  AppDelegate+Grofence.m
+//  AppDelegate+Geofence.m
 //  SCB Mobile Bank
 //
 //  Created by Ayden Chen on 2018/6/15.
 //
 
 #import "AppDelegate+Grofence.h"
-#import "Global.h"
 #import "geofence.h"
 
-@implementation AppDelegate (Grofence)
+@implementation AppDelegate (GroFence)
 
 + (void)load
 {
@@ -43,25 +42,73 @@
 
 - (AppDelegate *)geofenceSwizzledInit
 {
-//    NSLog(@"setLocalNotification");
-//    Global *global = [Global sharedInstance];
-//    BOOL isGenfenceEnable = [[NSUserDefaults standardUserDefaults] boolForKey:@"GeofenceStatus"];
-//    global.isGenfenceEnable = isGenfenceEnable;
-//
-//    [geofence checkReceiveStatus];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(geoFence_whenAppIsKilled:)
+                                                 name:UIApplicationDidFinishLaunchingNotification
+                                               object:nil];
     
     return [self geofenceSwizzledInit];
 }
 
-- (void)application:(UIApplication *)application didReceiveLocalNotification:(UILocalNotification *)notification{
-    NSDictionary *userInfo = notification.userInfo;
-    NSString *value = [userInfo objectForKey:@"name"];
-    if ([value isEqualToString:@"GeofenceNotification"])
-    {
-        geofence *geofenceInstance = [self.viewController getCommandInstance:@"geofence"];
-        [geofenceInstance userDidReceiveNotification:notification];
+- (void)geoFence_whenAppIsKilled:(NSNotification*)notification{
+
+    NSLog(@"geoFence didFinishLaunchingWithOptions");
+    if(notification){
+        NSDictionary* launchOptions = [notification userInfo];
+        NSMutableArray* localNotification = [launchOptions objectForKey: @"UIApplicationLaunchOptionsLocalNotificationKey"];
+        NSDictionary* userInfo = [localNotification valueForKey:@"userInfo"];
+        // 按下通知的時候, app is killed
+        [self geoFence_gotUserInfo:userInfo isAppKilled:1];
     }
 }
 
+#pragma mark - UNUserNotificationCenter Delegate // >= iOS 8
+- (void)application:(UIApplication *)application didReceiveLocalNotification:(UILocalNotification *)notification{
+    if(notification){
+        NSDictionary *userInfo = notification.userInfo;
+        [self geoFence_gotUserInfo:userInfo isAppKilled:0];
+    }
+}
+
+#pragma mark - UNUserNotificationCenter Delegate // >= iOS 10
+- (void)userNotificationCenter:(UNUserNotificationCenter *)center didReceiveNotificationResponse:(UNNotificationResponse *)response withCompletionHandler:(void (^)(void))completionHandler{
+    NSDictionary *userInfo = response.notification.request.content.userInfo;
+    NSString *value = [userInfo objectForKey:@"name"];
+    if ([value isEqualToString:@"GeofenceNotification"]) {
+        [self geoFence_gotUserInfo:userInfo isAppKilled:0];
+    }
+
+    completionHandler();
+}
+
+-(void)geoFence_gotUserInfo:(NSDictionary*)userInfo isAppKilled:(NSInteger)isAppKilled{
+    NSLog(@"geoFence receive userInfo");
+    NSString *value = [userInfo objectForKey:@"name"];
+    NSLog(@"geoFence receive name %@", value);
+    
+    if ([value isEqualToString:@"GeofenceNotification"])
+    {
+        NSString *merchantID = [userInfo objectForKey:@"merchantID"];
+        NSLog(@"geoFence geoFence_gotUserInfo merchantID: %@", merchantID);
+        // 按下通知寫入設定值
+        NSDateComponents *components = [[NSCalendar currentCalendar] components:NSCalendarUnitDay | NSCalendarUnitMonth | NSCalendarUnitYear fromDate:[NSDate date]];
+        NSDate *receiveDate = [[NSCalendar currentCalendar] dateFromComponents:components];
+
+        NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
+        [defaults setObject:receiveDate forKey:@"geoFence_ReceiveDate"];
+        [defaults setBool:YES forKey:@"geoFence_isReceiveStoreInfo"];
+        [defaults synchronize];
+        
+        if(isAppKilled==1) {
+            // 按下通知的時候, app is killed
+            [defaults setBool:YES forKey:@"geoFence_ReceiveNotification"];
+            [defaults setValue:merchantID forKey:@"geoFence_ReceiveNotification_merchantID"];
+            [defaults synchronize];
+        } else {
+            geofence* geofenceInstance = [self.viewController getCommandInstance:@"geofence"];
+            [geofenceInstance sendUpdate_changePage:merchantID];
+        }
+    }
+}
 
 @end

@@ -5,8 +5,8 @@
 //  Created by Ayden Chen on 2018/6/19.
 //
 
-#import "Global.h"
 #import <Cordova/CDV.h>
+#import <CoreLocation/CoreLocation.h>
 
 @interface geofence : CDVPlugin<CLLocationManagerDelegate>
 //  取得地理柵欄啟用狀態
@@ -26,5 +26,5 @@
 //  跳出使用者確認視窗
 - (void)sentConfirmDialog:(CDVInvokedUrlCommand*)command;
 //  使用者接收推播
-- (void)userDidReceiveNotification:(UILocalNotification*) notification;
+- (void)sendUpdate_changePage:(NSString*)Id;
 @end

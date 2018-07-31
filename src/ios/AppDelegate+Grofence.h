@@ -8,6 +8,6 @@
 #import "AppDelegate.h"
 #import <objc/runtime.h>
 
-@interface AppDelegate (Grofence)
+@interface AppDelegate (GroFence) <UNUserNotificationCenterDelegate>
 
 @end
