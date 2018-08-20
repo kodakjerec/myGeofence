@@ -32,6 +32,7 @@ public class NotificationBroadcastReceiver extends BroadcastReceiver {
             Log.d(TAG,"按下通知的時候, 喚醒app. merchantID:"+merchantID);
             // 喚醒
             Intent newTask = new Intent(context, MainActivity.class);
+            newTask.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             context.startActivity( newTask );
             geofence.sendUpdate_changePage(merchantID);
         } else {

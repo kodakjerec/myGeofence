@@ -35,12 +35,13 @@
             </feature>
         </config-file>
         <config-file target="AndroidManifest.xml" parent="/manifest/application">
-            <service android:enabled="true" android:name="geofence.EveryTenMinuteCallThisService" android:permission="android.permission.BIND_JOB_SERVICE" />
+            <service android:exported="false" android:enabled="true" android:name="geofence.EveryTenMinuteCallThisService" android:permission="android.permission.BIND_JOB_SERVICE" />
             <receiver android:name="geofence.NotificationBroadcastReceiver"></receiver>
         </config-file>
         <source-file src="src/android/geofence.java" target-dir="src/geofence" />
         <source-file src="src/android/EveryTenMinuteCallThisService.java" target-dir="src/geofence" />
         <source-file src="src/android/NotificationBroadcastReceiver.java" target-dir="src/geofence" />
+        <resource-file src="res/pushIcon/ic_scmobile.xml" target="res/drawable/ic_scmobile.xml" />
         <framework src="com.google.android.gms:play-services-location:15.0.1" />
     </platform>
 </plugin>

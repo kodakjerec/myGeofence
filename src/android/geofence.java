@@ -41,6 +41,7 @@ public class geofence extends CordovaPlugin {
     private int deadTime = 30*1000; //背景模式下, 送出api多久沒回應就關閉app
     int startJobTime = 3*1000; // 第一次開啟服務, 需要幾秒
     String TAG = "geoFenceCordovaPlugin";
+    String notificationGroup = R.class.getCanonicalName();
     static SharedPreferences settings;
     static JSONObject languageJson; // 系統預設中英字串
 
@@ -113,7 +114,14 @@ public class geofence extends CordovaPlugin {
 
         // 取得SharedPreference設定("pushEvent"為設定檔的名稱)
         settings = cordova.getActivity().getApplicationContext().getSharedPreferences("pushEvent", 0);
-        startJobScheduler();
+        
+        // 啟用地理柵欄
+        Boolean isGenfenceEnable = settings.getBoolean("geoFence_GeofenceStatus", false);
+        if(isGenfenceEnable){
+            startJobScheduler();
+        } else {
+            stopJobScheduler();
+        }
 
         myCallbackContext = callbackContext;
     }
@@ -229,6 +237,12 @@ public class geofence extends CordovaPlugin {
     // 發送通知
     private void sentLocalNotification(CallbackContext callbackContext, String merchantID)
     {
+        // 是否允許geoFence
+        if(!settings.getBoolean( "geoFence_GeofenceStatus", false )) {
+            return;
+        }
+
+        // 是否有接受過通知
         checkReceiveStatus();
         if(settings.getBoolean("geoFence_isReceiveStoreInfo", true)) {
             return;
@@ -238,20 +252,21 @@ public class geofence extends CordovaPlugin {
         Intent it = new Intent(cordova.getActivity().getApplicationContext(), NotificationBroadcastReceiver.class);
         it.putExtra( "merchantID", merchantID );
         it.setPackage( null );
-        PendingIntent pi = PendingIntent.getBroadcast(cordova.getActivity(),0   ,it, PendingIntent.FLAG_UPDATE_CURRENT);
+        PendingIntent pi = PendingIntent.getBroadcast(cordova.getActivity(),EveryTenMinuteCallThisService.jobId ,it, PendingIntent.FLAG_UPDATE_CURRENT);
         Notification.Builder notification = new Notification.Builder(cordova.getActivity())
                 .setContentIntent(pi)
                 .setAutoCancel(true)
                 .setOngoing(false)
-                .setSmallIcon(R.mipmap.icon)
+                .setSmallIcon(R.drawable.ic_scmobile)
                 .setContentTitle(getLanguageText("confirmTitle"))
-                .setContentText(getLanguageText("confirmContent"));
+                .setContentText(getLanguageText("confirmContent"))
+                .setGroup(notificationGroup);
 
         // android 8.0
         if (Build.VERSION.SDK_INT >=26) {
-            String geoFenceChannelId = "geoFence";
+            String geoFenceChannelId = getLanguageText("confirmTitle");
 
-            NotificationChannel nmChannel = new NotificationChannel( geoFenceChannelId, "SCBREEZE", NotificationManager.IMPORTANCE_DEFAULT );
+            NotificationChannel nmChannel = new NotificationChannel( geoFenceChannelId, getLanguageText("confirmTitle"), NotificationManager.IMPORTANCE_DEFAULT );
             nm.createNotificationChannel( nmChannel );
 
             notification.setChannelId( geoFenceChannelId );
@@ -270,10 +285,17 @@ public class geofence extends CordovaPlugin {
     // 發送確認視窗
     private void sentConfirmDialog(CallbackContext callbackContext)
     {
+        // 是否允許geoFence
+        if(!settings.getBoolean( "geoFence_GeofenceStatus", false )) {
+            return;
+        }
+
+        // 是否有接受過通知
         checkReceiveStatus();
         if(settings.getBoolean("geoFence_isReceiveStoreInfo", true)) {
             return;
         }
+
         new android.app.AlertDialog.Builder(cordova.getActivity())
                 .setTitle(getLanguageText("confirmTitle"))
                 .setMessage(getLanguageText("confirmContent"))
@@ -354,7 +376,7 @@ public class geofence extends CordovaPlugin {
         if(Build.VERSION.SDK_INT >=24) {
             builder.setMinimumLatency( startJobTime );
         } else {
-            builder.setPeriodic(startJobTime );
+            builder.setPeriodic(EveryTenMinuteCallThisService.minimumLatency );
         }
         JobInfo jobInfo = builder.build();
 

@@ -20,12 +20,14 @@
     
     // 啟用地理柵欄
     BOOL isGenfenceEnable = [[NSUserDefaults standardUserDefaults] boolForKey:@"geoFence_GeofenceStatus"];
-    if(isGenfenceEnable){
+    if(isGenfenceEnable == YES){
         if ([CLLocationManager authorizationStatus] == kCLAuthorizationStatusAuthorizedAlways) {
             [locationManager startMonitoringSignificantLocationChanges];
         } else {
             [locationManager requestAlwaysAuthorization];
         }
+    } else {
+        [locationManager stopMonitoringSignificantLocationChanges];
     }
 }
 
@@ -97,6 +99,12 @@
 - (void)sentLocalNotification:(CDVInvokedUrlCommand *)command {
     NSLog(@"geoFence sentLocalNotification");
     
+    // 是否允許geoFence
+    if ([[NSUserDefaults standardUserDefaults] boolForKey:@"geoFence_GeofenceStatus"]==NO){
+        return;
+    }
+    
+    // 是否有接受過通知
     [self checkReceiveStatus];
     if([[NSUserDefaults standardUserDefaults] boolForKey:@"geoFence_isReceiveStoreInfo"]==YES) {
         return;
@@ -115,6 +123,12 @@
 - (void)sentConfirmDialog:(CDVInvokedUrlCommand *)command {
     NSLog(@"geoFence sentConfirmDialog");
     
+    // 是否允許geoFence
+    if ([[NSUserDefaults standardUserDefaults] boolForKey:@"geoFence_GeofenceStatus"]==NO){
+        return;
+    }
+    
+    // 是否有接受過通知
     [self checkReceiveStatus];
     if([[NSUserDefaults standardUserDefaults] boolForKey:@"geoFence_isReceiveStoreInfo"]==YES) {
         return;
@@ -177,9 +191,8 @@
     NSDate *currentDate = [[NSCalendar currentCalendar] dateFromComponents:components];
     NSDate *receiveDate = [[NSUserDefaults standardUserDefaults] objectForKey:@"geoFence_ReceiveDate"];
     BOOL isReceive = [receiveDate isEqualToDate:currentDate];
-    
-    // 測試用指定為NO, 正式要指定 isReceive
-    [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"geoFence_isReceiveStoreInfo"];
+
+    [[NSUserDefaults standardUserDefaults] setBool:isReceive forKey:@"geoFence_isReceiveStoreInfo"];
 }
 
 @end

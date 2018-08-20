@@ -34,7 +34,7 @@ import java.util.List;
  */
 public class EveryTenMinuteCallThisService extends JobService {
     public static int jobId = 5566;  // 工作ID
-    int minimumLatency = 600*1000;           // 下一次工作, 最小等待時間, 不可低於 5 秒
+    public static int minimumLatency = 600*1000;           // 下一次工作, 最小等待時間, 不可低於 5 秒
     int locationFastestInterval = 1*1000;   // 幾秒更新一次GPS
     int locationInterval = 6*1000;          // 最長幾秒更新一次GPS(可能有其他問題)
     int locationServiceKillTime = 180*1000;  // GPS多久沒獲得資訊就自動終結
@@ -102,12 +102,6 @@ public class EveryTenMinuteCallThisService extends JobService {
         boolean willStartService = true;    // 是否啟用服務
 
         settings = this.getApplicationContext().getSharedPreferences("pushEvent", 0);
-
-        //測試使用
-        settings.edit()
-                .putBoolean( "geoFence_isReceiveStoreInfo",false )
-                .putString( "geoFence_ReceiveDate","1970/01/01" )
-                .commit();
 
         // 檢查 geoFence是否開啟
         willStartService = settings.getBoolean( "geoFence_GeofenceStatus", false);
@@ -185,20 +179,23 @@ public class EveryTenMinuteCallThisService extends JobService {
             e.printStackTrace();
         }
 
-        if(geofence.settings!=null) {
-            // 嘗試回應, 如果有錯誤就是死亡
-            Log.d(TAG,"嘗試呼叫sendUpdate");
-            geofence.sendUpdate(obj);
-        } else {
-            Log.d(TAG,"geoFence被掛掉了. 新增主程式, 並且在後台");
-            settings.edit().putString( "geoFence_LocationUpdate", obj.toString() ).commit();
+        // 如果已經重啟程式了, 不要再加重負擔
+        if (settings.getString( "geoFence_LocationUpdate","" ).equals("N")) {
+            if (geofence.settings != null) {
+                // 嘗試回應, 如果有錯誤就是死亡
+                Log.d( TAG, "嘗試呼叫sendUpdate" );
+                geofence.sendUpdate( obj );
+            } else {
+                Log.d( TAG, "geoFence被掛掉了. 新增主程式, 並且在後台" );
+                settings.edit().putString( "geoFence_LocationUpdate", obj.toString() ).commit();
 
-            // 新增主程式, 並且在後台
-            Intent newTask = new Intent(this, MainActivity.class);
-            newTask.putExtra("cdvStartInBackground", true);
-            newTask.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);
-            newTask.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(newTask);
+                // 新增主程式, 並且在後台
+                Intent newTask = new Intent( this, MainActivity.class );
+                newTask.putExtra( "cdvStartInBackground", true );
+                newTask.addFlags( Intent.FLAG_ACTIVITY_CLEAR_TASK );
+                newTask.addFlags( Intent.FLAG_ACTIVITY_NEW_TASK );
+                startActivity( newTask );
+            }
         }
     }
 
