@@ -27,4 +27,6 @@
 - (void)sentConfirmDialog:(CDVInvokedUrlCommand*)command;
 //  使用者接收推播
 - (void)sendUpdate_changePage:(NSString*)Id;
+// 判斷有沒有被前景kill
+-(void)geoFence_gotUserInfo:(NSDictionary*)userInfo isAppKilled:(NSInteger)isAppKilled ;
 @end

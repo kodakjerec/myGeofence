@@ -17,7 +17,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.support.v4.app.ActivityCompat;
 import android.util.Log;
-import com.scb.mb.tw.R;
+import com.mitake.android.scb.R;
 import org.apache.cordova.CordovaPlugin;
 import org.apache.cordova.CallbackContext;
 
@@ -184,7 +184,7 @@ public class geofence extends CordovaPlugin {
 
         if (checkedNotification) {
             Log.d(TAG,"按下通知的時候, app killed");
-            settings.edit().remove( "geoFence_ReceiveNotification" ).apply();
+            settings.edit().remove( "geoFence_ReceiveNotification" ).commit();
             String merchantID = settings.getString( "geoFence_ReceiveNotification_merchantID","" );
             sendUpdate_changePage(merchantID);
         }
@@ -230,7 +230,14 @@ public class geofence extends CordovaPlugin {
     // 關閉地理柵欄
     private void disableGeofence(CallbackContext callbackContext)
     {
-        settings.edit().putBoolean("geoFence_GeofenceStatus", false).apply();
+        settings.edit()
+                .putBoolean("geoFence_GeofenceStatus", false)
+                .putBoolean( "geoFence_isReceiveStoreInfo", false )
+                .remove( "geoFence_ReceiveDate" )
+                .remove( "geoFence_LocationUpdate" )
+                .remove( "geoFence_ReceiveNotification" )
+                .remove( "geoFence_ReceiveNotification_merchantID" )
+                .apply();
         stopJobScheduler();
     }
 
@@ -325,7 +332,7 @@ public class geofence extends CordovaPlugin {
     private void checkReceiveStatus(){
         DateFormat df = new SimpleDateFormat("yyyy/MM/dd");
         String currentDate = df.format(Calendar.getInstance().getTime());
-        String receiveDate = settings.getString("geoFence_ReceiveDate", currentDate);
+        String receiveDate = settings.getString("geoFence_ReceiveDate", "");
         boolean isReceive = receiveDate.equals(currentDate);
 
         settings.edit().putBoolean("geoFence_isReceiveStoreInfo", isReceive).apply();
@@ -383,10 +390,28 @@ public class geofence extends CordovaPlugin {
         // Schedule job
         Log.d("START", "Scheduling job");
         JobScheduler tm = (JobScheduler) cordova.getActivity().getSystemService(Context.JOB_SCHEDULER_SERVICE);
-        if( tm.schedule(jobInfo) <=0){
-            Log.d(TAG,"Scheduler error");
+
+        // Check whether this job is currently scheduled.
+        boolean hasBeenScheduled = false ;
+
+        List<JobInfo> jobs = tm.getAllPendingJobs();
+        if (jobs == null) {
+            hasBeenScheduled = false;
         } else {
-            Log.d(TAG, "Scheduler Start");
+            for (int i = 0; i < jobs.size(); i++) {
+                if (jobs.get( i ).getId() == EveryTenMinuteCallThisService.jobId) {
+                    hasBeenScheduled = true;
+                }
+            }
+        }
+
+        // start scheduler
+        if(!hasBeenScheduled) {
+            if (tm.schedule( jobInfo ) <= 0) {
+                Log.d( TAG, "Scheduler error" );
+            } else {
+                Log.d( TAG, "Scheduler Start" );
+            }
         }
     }
     // 關閉服務

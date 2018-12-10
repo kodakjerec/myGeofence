@@ -72,7 +72,8 @@
 // 啟用 地理柵欄
 - (void)enableGeofence:(CDVInvokedUrlCommand *)command {
     NSLog(@"geoFence enableGeofence");
-    [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"geoFence_GeofenceStatus"];
+    NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
+    [defaults setBool:YES forKey:@"geoFence_GeofenceStatus"];
     
     if ([CLLocationManager authorizationStatus] == kCLAuthorizationStatusAuthorizedAlways) {
         [locationManager startMonitoringSignificantLocationChanges];
@@ -85,7 +86,12 @@
 - (void)disableGeofence:(CDVInvokedUrlCommand *)command {
     
     NSLog(@"geoFence disableGeofence");
-    [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"geoFence_GeofenceStatus"];
+    NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
+    [defaults setBool:NO forKey:@"geoFence_GeofenceStatus"];
+    [defaults setBool:NO forKey:@"geoFence_isReceiveStoreInfo"];
+    [defaults setObject:nil forKey:@"geoFence_ReceiveDate"];
+    [defaults setBool:NO forKey:@"geoFence_ReceiveNotification"];
+    [defaults setValue:@"" forKey:@"geoFence_ReceiveNotification_merchantID"];
     [locationManager stopMonitoringSignificantLocationChanges];
 }
 
@@ -164,6 +170,11 @@
 }
 
 - (void)locationManager:(CLLocationManager *)manager didUpdateLocations:(NSArray<CLLocation *> *)locations{
+    // 是否允許geoFence
+    if ([[NSUserDefaults standardUserDefaults] boolForKey:@"geoFence_GeofenceStatus"]==NO){
+        return;
+    }
+    
     CLLocation *newLocation = locations.lastObject;
     
     NSMutableDictionary *locationInfo = [[NSMutableDictionary alloc] init];
@@ -193,6 +204,36 @@
     BOOL isReceive = [receiveDate isEqualToDate:currentDate];
 
     [[NSUserDefaults standardUserDefaults] setBool:isReceive forKey:@"geoFence_isReceiveStoreInfo"];
+}
+
+// 判斷有沒有被前景kill
+-(void)geoFence_gotUserInfo:(NSDictionary*)userInfo isAppKilled:(NSInteger)isAppKilled {
+    NSLog(@"geoFence receive userInfo");
+    NSString *value = [userInfo objectForKey:@"name"];
+    NSLog(@"geoFence receive name %@ , isAppKilled %ld", value, isAppKilled);
+    
+    if ([value isEqualToString:@"GeofenceNotification"])
+    {
+        NSString *merchantID = [userInfo objectForKey:@"merchantID"];
+        NSLog(@"geoFence geoFence_gotUserInfo merchantID: %@", merchantID);
+        // 按下通知寫入設定值
+        NSDateComponents *components = [[NSCalendar currentCalendar] components:NSCalendarUnitDay | NSCalendarUnitMonth | NSCalendarUnitYear fromDate:[NSDate date]];
+        NSDate *receiveDate = [[NSCalendar currentCalendar] dateFromComponents:components];
+        
+        NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
+        [defaults setObject:receiveDate forKey:@"geoFence_ReceiveDate"];
+        [defaults setBool:YES forKey:@"geoFence_isReceiveStoreInfo"];
+        [defaults synchronize];
+        
+        if(isAppKilled==1) {
+            // 按下通知的時候, app is killed
+            [defaults setBool:YES forKey:@"geoFence_ReceiveNotification"];
+            [defaults setValue:merchantID forKey:@"geoFence_ReceiveNotification_merchantID"];
+            [defaults synchronize];
+        } else {
+            [self sendUpdate_changePage:merchantID];
+        }
+    }
 }
 
 @end

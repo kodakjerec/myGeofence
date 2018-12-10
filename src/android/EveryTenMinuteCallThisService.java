@@ -20,7 +20,7 @@ import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
-import com.scb.mb.tw.MainActivity;
+import com.mitake.android.scb.MainActivity;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -51,6 +51,9 @@ public class EveryTenMinuteCallThisService extends JobService {
     public void onCreate() {
         super.onCreate();
         Log.d(TAG, "Service created");
+
+        if (settings == null)
+            settings = this.getApplicationContext().getSharedPreferences("pushEvent", 0);
     }
 
     @Override
@@ -64,16 +67,18 @@ public class EveryTenMinuteCallThisService extends JobService {
         // The work that this service "does" is simply wait for a certain duration and finish
         // the job (on another thread).
 
-        // Uses a handler to delay the execution of jobFinished().
-        Handler handler = new Handler();
-        handler.post(new Runnable() {
-            @Override
-            public void run() {
-                Log.d(TAG, "on start job: " + params.getJobId());
-                mainThread();
-            }
-        });
-
+        // 如果已經重啟程式了, 不要再加重負擔
+        if (settings.getString( "geoFence_LocationUpdate","" ).equals("")) {
+            // Uses a handler to delay the execution of jobFinished().
+            Handler handler = new Handler();
+            handler.post( new Runnable() {
+                @Override
+                public void run() {
+                    Log.d( TAG, "on start job: " + params.getJobId() );
+                    mainThread();
+                }
+            } );
+        }
         Log.d(TAG,"job finished");
 
         // 結束工作前, 提前安排 重新排程
@@ -100,8 +105,6 @@ public class EveryTenMinuteCallThisService extends JobService {
     // 主要執行功能
     private void mainThread(){
         boolean willStartService = true;    // 是否啟用服務
-
-        settings = this.getApplicationContext().getSharedPreferences("pushEvent", 0);
 
         // 檢查 geoFence是否開啟
         willStartService = settings.getBoolean( "geoFence_GeofenceStatus", false);
@@ -179,23 +182,20 @@ public class EveryTenMinuteCallThisService extends JobService {
             e.printStackTrace();
         }
 
-        // 如果已經重啟程式了, 不要再加重負擔
-        if (settings.getString( "geoFence_LocationUpdate","" ).equals("N")) {
-            if (geofence.settings != null) {
-                // 嘗試回應, 如果有錯誤就是死亡
-                Log.d( TAG, "嘗試呼叫sendUpdate" );
-                geofence.sendUpdate( obj );
-            } else {
-                Log.d( TAG, "geoFence被掛掉了. 新增主程式, 並且在後台" );
-                settings.edit().putString( "geoFence_LocationUpdate", obj.toString() ).commit();
+        if (geofence.settings != null) {
+            // 嘗試回應, 如果有錯誤就是死亡
+            Log.d( TAG, "嘗試呼叫sendUpdate" );
+            geofence.sendUpdate( obj );
+        } else {
+            Log.d( TAG, "geoFence被掛掉了. 新增主程式, 並且在後台" );
+            settings.edit().putString( "geoFence_LocationUpdate", obj.toString() ).commit();
 
-                // 新增主程式, 並且在後台
-                Intent newTask = new Intent( this, MainActivity.class );
-                newTask.putExtra( "cdvStartInBackground", true );
-                newTask.addFlags( Intent.FLAG_ACTIVITY_CLEAR_TASK );
-                newTask.addFlags( Intent.FLAG_ACTIVITY_NEW_TASK );
-                startActivity( newTask );
-            }
+            // 新增主程式, 並且在後台
+            Intent newTask = new Intent( this, MainActivity.class );
+            newTask.putExtra( "cdvStartInBackground", true );
+            newTask.addFlags( Intent.FLAG_ACTIVITY_CLEAR_TASK );
+            newTask.addFlags( Intent.FLAG_ACTIVITY_NEW_TASK );
+            startActivity( newTask );
         }
     }
 

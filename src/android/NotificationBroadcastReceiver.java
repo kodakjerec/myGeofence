@@ -6,7 +6,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.util.Log;
 
-import com.scb.mb.tw.MainActivity;
+import com.mitake.android.scb.MainActivity;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
@@ -27,7 +27,7 @@ public class NotificationBroadcastReceiver extends BroadcastReceiver {
         settings.edit()
                 .putString("geoFence_ReceiveDate", receiveDate)
                 .putBoolean("geoFence_isReceiveStoreInfo", true)
-                .commit();
+                .apply();
         if(geofence.settings!=null) {
             Log.d(TAG,"按下通知的時候, 喚醒app. merchantID:"+merchantID);
             // 喚醒
@@ -43,7 +43,7 @@ public class NotificationBroadcastReceiver extends BroadcastReceiver {
             settings.edit()
                     .putBoolean("geoFence_ReceiveNotification", true)
                     .putString( "geoFence_ReceiveNotification_merchantID", merchantID )
-                    .commit();
+                    .apply();
 
             Intent newTask = new Intent(context, MainActivity.class);
             newTask.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);
